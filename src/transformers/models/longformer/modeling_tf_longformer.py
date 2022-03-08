@@ -785,7 +785,7 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
         ) = self._get_global_attn_indices(is_index_global_attn)
 
         # this function is only relevant for global attention
-        attn_scores = tf.cond(
+        '''attn_scores = tf.cond(
             is_global_attn,
             lambda: self._concat_with_global_key_attn_probs(
                 attn_scores=attn_scores,
@@ -797,14 +797,14 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
                 is_local_index_no_global_attn_nonzero=is_local_index_no_global_attn_nonzero,
             ),
             lambda: attn_scores,
-        )
+        )'''
         attn_probs = tf.nn.softmax(attn_scores, axis=-1)
 
         # softmax sometimes inserts NaN if all positions are masked, replace them with 0
         # Make sure to create a mask with the proper shape:
         # if is_global_attn==True => [batch_size, seq_len, self.num_heads, self.one_sided_attn_window_size * 2 + max_num_global_attn_indices + 1]
         # if is_global_attn==False => [batch_size, seq_len, self.num_heads, self.one_sided_attn_window_size * 2 + 1]
-        masked_index = tf.cond(
+        '''masked_index = tf.cond(
             is_global_attn,
             lambda: tf.tile(
                 is_index_masked[:, :, None, None],
@@ -814,7 +814,11 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
                 is_index_masked[:, :, None, None],
                 (1, 1, self.num_heads, self.one_sided_attn_window_size * 2 + 1),
             ),
-        )
+        )'''
+        masked_index = tf.tile(
+                is_index_masked[:, :, None, None],
+                (1, 1, self.num_heads, self.one_sided_attn_window_size * 2 + 1),
+            )
         attn_probs = tf.where(
             masked_index,
             tf.zeros(shape_list(masked_index), dtype=attn_probs.dtype),
@@ -836,7 +840,7 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
         value_vectors = tf.reshape(value_vectors, (batch_size, seq_len, self.num_heads, self.head_dim))
 
         # if global attention, compute sum of global and local attn
-        attn_output = tf.cond(
+        '''attn_output = tf.cond(
             is_global_attn,
             lambda: self._compute_attn_output_with_global_indices(
                 value_vectors=value_vectors,
@@ -848,7 +852,10 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
             lambda: self._sliding_chunks_matmul_attn_probs_value(
                 attn_probs, value_vectors, self.one_sided_attn_window_size
             ),
-        )
+        )'''
+        attn_output = self._sliding_chunks_matmul_attn_probs_value(
+                attn_probs, value_vectors, self.one_sided_attn_window_size
+            )
 
         if tf.executing_eagerly():
             tf.debugging.assert_equal(
@@ -861,7 +868,7 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
 
         # compute value for global attention and overwrite to attention output
         # TODO: remove the redundant computation
-        attn_output, global_attn_probs = tf.cond(
+        '''attn_output, global_attn_probs = tf.cond(
             is_global_attn,
             lambda: self._compute_global_attn_output_from_hidden(
                 attn_output=attn_output,
@@ -875,13 +882,14 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
                 training=training,
             ),
             lambda: (attn_output, tf.zeros((batch_size, self.num_heads, max_num_global_attn_indices, seq_len))),
-        )
+        )'''
+        attn_output, global_attn_probs = attn_output, tf.zeros((batch_size, self.num_heads, max_num_global_attn_indices, seq_len))
 
         # make sure that local attention probabilities are set to 0 for indices of global attn
         # Make sure to create a mask with the proper shape:
         # if is_global_attn==True => [batch_size, seq_len, self.num_heads, self.one_sided_attn_window_size * 2 + max_num_global_attn_indices + 1]
         # if is_global_attn==False => [batch_size, seq_len, self.num_heads, self.one_sided_attn_window_size * 2 + 1]
-        masked_global_attn_index = tf.cond(
+        '''masked_global_attn_index = tf.cond(
             is_global_attn,
             lambda: tf.tile(
                 is_index_global_attn[:, :, None, None],
@@ -891,7 +899,11 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
                 is_index_global_attn[:, :, None, None],
                 (1, 1, self.num_heads, self.one_sided_attn_window_size * 2 + 1),
             ),
-        )
+        )'''
+        masked_global_attn_index = tf.tile(
+                is_index_global_attn[:, :, None, None],
+                (1, 1, self.num_heads, self.one_sided_attn_window_size * 2 + 1),
+            )
         attn_probs = tf.where(
             masked_global_attn_index,
             tf.zeros(shape_list(masked_global_attn_index), dtype=attn_probs.dtype),

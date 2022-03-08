@@ -934,7 +934,7 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
                 message=f"Shape of query and key should be equal, but got query: {shape_list(query)} and key: {shape_list(key)}",
             )
 
-        chunks_count = seq_len // window_overlap - 1
+        chunks_count = 1024//256-1#seq_len // window_overlap - 1
 
         # group batch_size and num_heads dimensions into one, then chunk seq_len into chunks of size window_overlap * 2
         query = tf.reshape(
@@ -997,13 +997,20 @@ class TFLongformerSelfAttention(tf.keras.layers.Layer):
             ],
             axis=1,
         )
-        first_chunk_mask = (
+        '''first_chunk_mask = (
             tf.tile(
                 tf.range(chunks_count + 1)[None, :, None, None],
                 (batch_size * num_heads, 1, window_overlap, window_overlap),
             )
             < 1
-        )
+        )'''
+        first_chunk_mask = (
+                    tf.tile(
+                        tf.reshape(tf.range(chunks_count + 1),[1, -1, 1, 1]),
+                        (batch_size * num_heads, 1, 256, 256),
+                    )
+                    < 1
+                )
         diagonal_attn_scores_low_triang = tf.where(
             first_chunk_mask,
             diagonal_attn_scores_first_chunk,
